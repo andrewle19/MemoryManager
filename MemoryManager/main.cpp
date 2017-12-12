@@ -1,5 +1,5 @@
-// Author: Andrew Le
-// email: andrewle19@csu.fullerton.edu
+// Author: Andrew Le and Andrew Rivada
+// email: andrewle19@csu.fullerton.edu, andrewrivada@csu.fullerton.edu
 // 12/5/17
 //
 
@@ -28,11 +28,28 @@ const int ADDRESS_MASK =  0xFFFF;
 const int OFFSET_MASK = 0xFF;
 
 
-int pageTableNumbers[PAGESIZE]; // array to hold page numbers
-int pageTableFrames[PAGESIZE]; // array to hold corresponding frames
+// struct to represent TLB and Page Entry
+struct entry{
+    int logical;
+    int frameNumber;
+};
 
-int TLBPageNumbers[TLBSIZE]; // array to represent the TLB keys or page numbers
-int TLBFrameNumbers[TLBSIZE]; // array to hold the corresponding TLB page number
+
+
+
+
+
+// array of entries that represents the TLB
+entry tlb[TLBSIZE];
+
+// array of entries that represents the page entries
+entry pageTable[PAGESIZE];
+
+//int pageTableNumbers[PAGESIZE]; // array to hold page numbers
+//int pageTableFrames[PAGESIZE]; // array to hold corresponding frames
+
+//int TLBPageNumbers[TLBSIZE]; // array to represent the TLB keys or page numbers
+//int TLBFrameNumbers[TLBSIZE]; // array to hold the corresponding TLB page number
 
 int physicalMemory[FRAMES][FRAMESIZE]; // hold the value of the physical Addresses
 
@@ -72,8 +89,8 @@ void getPage(int logicalAddress){
     // look through TLB to check if pagenumber and key match
     for(int i = 0; i < TLBSIZE; i++){
         // TLB index is equal to the page number
-        if(TLBPageNumbers[i] == pageNumber){
-            frameNumber = TLBFrameNumbers[i]; // then frame number is extracted
+        if(tlb[i].logical == pageNumber){
+            frameNumber = tlb[i].frameNumber; // then frame number is extracted
             TLBHits++; // increment the TLB hits
             TLBfound = true; // make the tlb found true
             pageTablefound = true; // then dont check the page table
@@ -82,10 +99,10 @@ void getPage(int logicalAddress){
     // if the tlb found is not true
     if(!TLBfound){
         // Search through the page Table
-        for(int i = 0; i < firstPageTableNumberAvaliable; i++){
+        for(int i = 0; i < firstFrameAvaliable; i++){
             // if the page is found go to the corresponding array
-            if(pageTableNumbers[i] == pageNumber){
-                frameNumber = pageTableFrames[i];
+            if(pageTable[i].logical == pageNumber){
+                frameNumber = pageTable[i].frameNumber;
                 pageTablefound = true; // set page table found
             }
         }
@@ -125,26 +142,25 @@ void getPage(int logicalAddress){
     //cout << "virt: " << logicalAddress << " Physical Address " << ((frameNumber << 8) | offset ) << " Value: " << (int)value << " pageFaults: " << pageFaults << endl;
  
 }
-// function to insert frame and page number into the TLB with FIFO
+// f≈unction to insert frame and page number into the TLB with FIFO
 void insertTLB(int pageNumber, int frameNumber){
     
     // if the current size is less then max size insert
     if(TLBcurrentsize < TLBSIZE){
-        TLBPageNumbers[TLBcurrentsize] = pageNumber;
-        TLBFrameNumbers[TLBcurrentsize] = pageNumber;
+        tlb[TLBcurrentsize-1].logical = pageNumber;
+        tlb[TLBcurrentsize-1].frameNumber = frameNumber;
         TLBcurrentsize++;
     }
     // else we have to replace/shift
     else {
         // shift everything left by one to do FIFO
-        for(int i = 0; i < TLBSIZE - 1; i++){
-            TLBPageNumbers[i] = TLBPageNumbers[i+1];
-            TLBFrameNumbers[i] = TLBFrameNumbers[i+1];
+        for(int i = 0; i < TLBSIZE; i++){
+            tlb[i] = tlb[i+1];
         }
         
         // insert at the back
-        TLBPageNumbers[TLBcurrentsize-1] = pageNumber;
-        TLBFrameNumbers[TLBcurrentsize-1] = frameNumber;
+        tlb[TLBcurrentsize-1].logical = pageNumber;
+        tlb[TLBcurrentsize-1].frameNumber = frameNumber;
     }
 }
 
@@ -167,12 +183,12 @@ void getFromBackingStore(int pageNumber){
     }
     
     // load the frame number into page table in first avalible frame
-    pageTableNumbers[firstPageTableNumberAvaliable] = pageNumber;
-    pageTableFrames[firstFrameAvaliable] = firstFrameAvaliable;
+    pageTable[firstFrameAvaliable].logical = pageNumber;
+    pageTable[firstFrameAvaliable].frameNumber = firstFrameAvaliable;
     
-    // increment counters
+    // increment the frist avalible frame
     firstFrameAvaliable++;
-    firstPageTableNumberAvaliable++;
+    
 }
 
 
@@ -210,10 +226,11 @@ int main(int argc, char *argv[]) {
 
     // translate until end of file
     while(input >> logicalAddress){
-       
         getPage(logicalAddress);
         translatedAddressTotal++;
     }
+    
+    
     double pageFaultRate = pageFaults / double(translatedAddressTotal);
     double TLBHitRate = TLBHits / double(translatedAddressTotal);
 
@@ -223,7 +240,6 @@ int main(int argc, char *argv[]) {
     cout << "Page fault rate: " << pageFaultRate << endl;
     cout << "TLB hits: " << TLBHits << endl;
     cout << "TLB hit rate: " << TLBHitRate << endl;
-    
     
     cout << "..... done\n";
     
